@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>Efectul Magnus - Tunel Aerodinamic (Săgeată Maximă)</title>
+    <style>
+        body { margin: 0; display: flex; flex-direction: column; align-items: center; background-color: #0f0f0f; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+        .container { background: #1a1a1a; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333; }
+        canvas { background-color: #050505; border-radius: 8px; border: 1px solid #222; box-shadow: inset 0 0 20px rgba(0,0,0,1); }
+        .panou-control { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; gap: 30px; }
+        .grup-control { display: flex; flex-direction: column; flex: 1; }
+        label { font-size: 13px; font-weight: bold; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #f1c40f; }
+        .panou-date { text-align: center; background: #000; padding: 15px 25px; border-radius: 8px; border: 1px solid #333; min-width: 150px; }
+        .titlu-date { font-size: 11px; color: #777; letter-spacing: 1px; margin-bottom: 5px; }
+        .valoare-forta { font-size: 28px; font-weight: bold; color: #f1c40f; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <canvas id="ecranSimulare" width="800" height="450"></canvas>
+
+        <div class="panou-control">
+            <div class="grup-control">
+                <label id="lblVant">Viteză vânt: 20 m/s</label>
+                <input type="range" id="inpVant" min="5" max="50" value="20">
+            </div>
+
+            <div class="grup-control">
+                <label id="lblRpm">Turație Cilindru: 0 RPM</label>
+                <input type="range" id="inpRpm" min="-2000" max="2000" value="0" step="1">
+            </div>
+
+            <div class="panou-date">
+                <div class="titlu-date">PORTANȚĂ (FORȚA MAGNUS)</div>
+                <div class="valoare-forta" id="valForta">0.0 N</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('ecranSimulare');
+        const ctx = canvas.getContext('2d');
+        const inpVant = document.getElementById('inpVant');
+        const inpRpm = document.getElementById('inpRpm');
+        const lblVant = document.getElementById('lblVant');
+        const lblRpm = document.getElementById('lblRpm');
+        const valForta = document.getElementById('valForta');
+
+        const razaCilindru = 45;
+        const centruX = canvas.width / 2;
+        const centruY = canvas.height / 2;
+        let unghiRotatie = 0;
+
+        // Particulele tunelului aerodinamic
+        let particule = [];
+        for (let i = 0; i < 400; i++) {
+            particule.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height
+            });
+        }
+
+        function deseneaza() {
+            let vant = parseFloat(inpVant.value);
+            let rpm = parseFloat(inpRpm.value);
+
+            lblVant.innerText = `Viteză vânt: ${vant} m/s`;
+            lblRpm.innerText = `Turație Cilindru: ${rpm} RPM`;
+            let fortaMagnus = - vant * rpm * 0.00000241;
+            valForta.innerText = Math.abs(fortaMagnus).toFixed(5) + " N";
+
+            // Efectul de urmă (siaj)
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // --- 1. AERUL (Liniile de curent) ---
+            ctx.fillStyle = '#ffffff'; 
+            for (let i = 0; i < particule.length; i++) {
+                let p = particule[i];
+                
+                let dx = p.x - centruX;
+                let dy = p.y - centruY;
+                let d = Math.sqrt(dx*dx + dy*dy);
+
+                let vx = vant * 0.4;
+                let vy = 0;
+
+                if (d > razaCilindru && d < razaCilindru * 4) {
+                    let respingere = (razaCilindru * razaCilindru * vant * 0.5) / (d * d);
+                    vx -= respingere * (dx * dx - dy * dy) / (d * d);
+                    vy -= respingere * (2 * dx * dy) / (d * d);
+                    
+                    let vortex = rpm * 0.015; 
+                    vx += (-dy / d) * vortex * (razaCilindru / d);
+                    vy += (dx / d) * vortex * (razaCilindru / d);
+                } 
+                else if (d <= razaCilindru) {
+                    p.y = centruY + (Math.random() > 0.5 ? razaCilindru + 10 : -razaCilindru - 10);
+                }
+
+                p.x += vx;
+                p.y += vy;
+
+                if (p.x > canvas.width + 10 || p.y < -50 || p.y > canvas.height + 50) {
+                    p.x = -10;
+                    p.y = Math.random() * canvas.height;
+                }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // --- 2. CILINDRUL ---
+            ctx.beginPath();
+            ctx.arc(centruX, centruY, razaCilindru, 0, Math.PI * 2);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#111';
+            ctx.stroke();
+
+            unghiRotatie += (rpm * 0.001);
+            ctx.save();
+            ctx.translate(centruX, centruY);
+            ctx.rotate(unghiRotatie);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(razaCilindru, 0);
+            ctx.strokeStyle = '#f1c40f';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.restore();
+
+            // --- 3. VECTORUL FORȚEI (CORECTAT ȘI SCALAT VIZUAL) ---
+            // Modificăm condiția: desenăm dacă RPM nu este 0 (există rotație)
+            if (rpm !== 0) {
+                let dir = Math.sign(fortaMagnus); 
+                
+                // --- MODIFICAREA PRINCIPALĂ AICI ---
+                // Creștem enorm multiplicatorul vizual (de la 1.5 la 3000)
+                // pentru a transforma o forță de ~0.02 N într-o săgeată de ~60 pixeli
+                let factorScalareVizuala = 3000;
+                let h = fortaMagnus * factorScalareVizuala; 
+                let fy = centruY + h;
+
+                // Tija săgeții
+                ctx.beginPath();
+                ctx.moveTo(centruX, centruY);
+                ctx.lineTo(centruX, fy);
+                ctx.strokeStyle = '#e74c3c'; // Roșu
+                ctx.lineWidth = 5; 
+                ctx.stroke();
+
+                // Vârful săgeții
+                ctx.beginPath();
+                ctx.moveTo(centruX, fy);
+                // Ajustăm dimensiunea vârfului să nu fie prea mare raportat la tijă
+                ctx.lineTo(centruX - 8, fy - dir * 12);
+                ctx.lineTo(centruX + 8, fy - dir * 12);
+                ctx.fillStyle = '#e74c3c';
+                ctx.fill();
+
+                // Etichetă Text
+                ctx.font = 'bold 15px Arial';
+                ctx.textAlign = 'left';
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'black';
+                // Poziționăm textul lângă vârful săgeții
+                ctx.strokeText('FORȚA MAGNUS', centruX + 20, fy);
+                ctx.fillStyle = 'white';
+                ctx.fillText('FORȚA MAGNUS', centruX + 20, fy);
+            }
+
+            requestAnimationFrame(deseneaza);
+        }
+
+        deseneaza();
+    </script>
+</body>
+</html>
